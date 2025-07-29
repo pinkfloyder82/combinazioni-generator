@@ -269,9 +269,6 @@ if garanzia >= k_combination_length:
     errori.append("La garanzia deve essere minore della lunghezza della combinazione")
     validazione_ok = False
 
-if len(fixed_numbers_to_include) > k_combination_length:
-    errori.append("Troppi numeri da includere per la lunghezza della combinazione")
-    validazione_ok = False
 
 # Valida che i numeri fissi siano compatibili con il tipo di numeri generato
 if tipo_numeri_generazione == "Solo Pari":
@@ -287,8 +284,8 @@ elif tipo_numeri_generazione == "Solo Dispari":
 
 # Validazione: Se numeri fissi sono più del numero_di_numeri, errore
 if len(fixed_numbers_to_include) > numero_di_numeri:
-    errori.append(f"Il numero di 'Numeri da includere' ({len(fixed_numbers_to_include)}) non può essere maggiore di 'Numeri totali da generare' ({numero_di_numeri}).")
-    validazione_ok = False
+    numero_di_numeri = len(fixed_numbers_to_include)
+    st.sidebar.warning(f"⚠️ 'Numeri totali da generare' è stato automaticamente aggiornato a {numero_di_numeri} per includere tutti i numeri fissi.")
 
 # Validazione: Tutti i numeri fissi devono essere nel range filtrato
 for f_num in fixed_numbers_to_include:
@@ -378,7 +375,7 @@ with col1:
             
             # Riduzione con garanzia
             if len(full_combinations) > 0:
-                if garanzia < k_combination_length and len(full_combinations) > 1:
+                if len(full_combinations) > 1:
                     final_combinations = reduce_combinations_with_guarantee_greedy(
                         full_combinations, garanzia, max_combinations
                     )
