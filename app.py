@@ -154,11 +154,11 @@ st.sidebar.header("⚙ Configurazione Parametri")
 st.sidebar.markdown("Configura i parametri per la generazione delle combinazioni:")
 
 # Parametri principali
-numero_di_numeri = st.sidebar.slider(
-    "📊 Numeri totali da generare", 
-    min_value=5, max_value=50, value=10, # Max_value verrà aggiornato dinamicamente
-    help="Quanti numeri casuali generare dall'intervallo specificato. Seleziona un numero pari ai 'Numeri fissi' per usare solo quelli."
-)
+# numero_di_numeri = st.sidebar.slider(
+#     "📊 Numeri totali da generare", 
+#     min_value=5, max_value=50, value=10, # Max_value verrà aggiornato dinamicamente
+#     help="Quanti numeri casuali generare dall'intervallo specificato. Seleziona un numero pari ai 'Numeri fissi' per usare solo quelli."
+# )
 
 col_range1, col_range2 = st.sidebar.columns(2)
 with col_range1:
