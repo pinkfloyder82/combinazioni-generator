@@ -138,6 +138,13 @@ def get_excel_download_link(data, filename, link_text):
 # Header principale
 st.markdown('<h1 class="main-header">🎯 Generatore di Combinazioni con Garanzia</h1>', unsafe_allow_html=True)
 st.markdown("*Crea combinazioni ottimizzate con algoritmo greedy e garanzia personalizzabile*")
+st.markdown("*Utilizzalo per tentare la sorte con le tue lotterie preferite*")
+st.markdown(
+    """
+    <div style="text-align: center; margin-top: 10px; margin-bottom: 20px;">
+        Supporta lo sviluppo: <a href="https://paypal.me/peppino82" target="_blank">☕ Offrimi un caffè su PayPal</a>
+    </div>
+    """,
 st.markdown("---")
 
 # Sidebar per i parametri
@@ -499,6 +506,8 @@ st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666; font-size: 0.8em;'>"
     "🚀 Powered by Streamlit | 🎯 Algoritmo Greedy Ottimizzato"
+    "Creato da Giuseppe Andolfi"
+    "dammi il tuo feedback a andolfi.giuseppe@gmail.com
     "</div>", 
     unsafe_allow_html=True
 )
