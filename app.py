@@ -179,8 +179,10 @@ numero_di_numeri = st.sidebar.slider(
 
 k_combination_length = st.sidebar.slider(
     "🔢 Lunghezza combinazione", 
-    min_value=3, max_value=10, value=5,
-    help="Quanti numeri per ogni combinazione"
+    min_value=2, 
+    max_value=numero_di_numeri,  # dinamico rispetto ai numeri totali generati
+    value=min(5, numero_di_numeri),
+    help="Quanti numeri per ogni combinazione. Non può superare il numero di numeri totali generati."
 )
 
 garanzia = st.sidebar.slider(
@@ -376,9 +378,18 @@ with col1:
             
             # Riduzione con garanzia
             if len(full_combinations) > 0:
-                final_combinations = reduce_combinations_with_guarantee_greedy(
-                    full_combinations, garanzia, max_combinations
-                )
+    if garanzia < k_combination_length and len(full_combinations) > 1:
+        final_combinations = reduce_combinations_with_guarantee_greedy(
+            full_combinations, garanzia, max_combinations
+        )
+    else:
+        st.info("ℹ️ La riduzione è stata saltata perché non necessaria o non applicabile.")
+        final_combinations = full_combinations
+
+            # if len(full_combinations) > 0:
+            #     final_combinations = reduce_combinations_with_guarantee_greedy(
+            #         full_combinations, garanzia, max_combinations
+            #     )
                 st.success(f"🎯 *Combinazioni finali:* {len(final_combinations):,}")
                 
                 # Creazione DataFrame
