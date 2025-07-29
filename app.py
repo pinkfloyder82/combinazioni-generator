@@ -506,10 +506,13 @@ with st.expander("❓ Aiuto e Suggerimenti"):
 
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: #666; font-size: 0.8em;'>"
-    "🚀 Powered by Streamlit | 🎯 Algoritmo Greedy Ottimizzato"
-    "Creato da Giuseppe Andolfi"
-    "dammi il tuo feedback: andolfi.giuseppe@gmail.com<br>"
-    "</div>", 
+    """
+    <div style='text-align: center; color: #666; font-size: 0.8em;'>
+        🚀 Powered by Streamlit | 🎯 Algoritmo Greedy Ottimizzato<br>
+        Creato da Giuseppe Andolfi<br>
+        dammi il tuo feedback: <a href="mailto:andolfi.giuseppe@gmail.com">andolfi.giuseppe@gmail.com</a>
+    </div>
+    """,
     unsafe_allow_html=True
 )
+
