@@ -509,6 +509,7 @@ st.markdown(
     "<div style='text-align: center; color: #666; font-size: 0.8em;'>"
     "🚀 Powered by Streamlit | 🎯 Algoritmo Greedy Ottimizzato"
     "Creato da Giuseppe Andolfi"
+     "</div>",
     "dammi il tuo feedback: andolfi.giuseppe@gmail.com"
     "</div>", 
     unsafe_allow_html=True
