@@ -378,13 +378,13 @@ with col1:
             
             # Riduzione con garanzia
             if len(full_combinations) > 0:
-    if garanzia < k_combination_length and len(full_combinations) > 1:
-        final_combinations = reduce_combinations_with_guarantee_greedy(
-            full_combinations, garanzia, max_combinations
-        )
-    else:
-        st.info("ℹ️ La riduzione è stata saltata perché non necessaria o non applicabile.")
-        final_combinations = full_combinations
+                if garanzia < k_combination_length and len(full_combinations) > 1:
+                    final_combinations = reduce_combinations_with_guarantee_greedy(
+                        full_combinations, garanzia, max_combinations
+                    )
+                else:
+                    st.info("ℹ️ La riduzione è stata saltata perché non necessaria o non applicabile.")
+                    final_combinations = full_combinations
 
             # if len(full_combinations) > 0:
             #     final_combinations = reduce_combinations_with_guarantee_greedy(
