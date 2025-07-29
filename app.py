@@ -178,6 +178,14 @@ with st.sidebar.expander("⚙ Parametri Avanzati"):
         help="Usa lo stesso seed per ottenere risultati riproducibili"
     )
 
+    # NUOVA OPZIONE: Filtro numeri pari/dispari
+    tipo_numeri_generazione = st.radio(
+        "Tipo di numeri da generare",
+        ("Tutti", "Solo Pari", "Solo Dispari"),
+        index=0,
+        help="Scegli se generare numeri pari, dispari o entrambi nel range specificato."
+    )
+
 # Elaborazione input
 fixed_numbers_to_include = []
 if numeri_fissi_input.strip():
@@ -208,8 +216,17 @@ if range_max <= range_min:
     errori.append("Il range massimo deve essere maggiore del range minimo")
     validazione_ok = False
 
-if numero_di_numeri > (range_max - range_min + 1):
-    errori.append("Troppi numeri richiesti per l'intervallo specificato")
+# Calcolo dei numeri disponibili in base al tipo selezionato
+available_numbers_in_range = []
+for num in range(range_min, range_max + 1):
+    if tipo_numeri_generazione == "Solo Pari" and num % 2 != 0:
+        continue
+    if tipo_numeri_generazione == "Solo Dispari" and num % 2 == 0:
+        continue
+    available_numbers_in_range.append(num)
+
+if numero_di_numeri > len(available_numbers_in_range):
+    errori.append(f"Troppi numeri richiesti per l'intervallo specificato e il filtro '{tipo_numeri_generazione}'. Numeri disponibili: {len(available_numbers_in_range)}")
     validazione_ok = False
 
 if garanzia >= k_combination_length:
@@ -219,6 +236,19 @@ if garanzia >= k_combination_length:
 if len(fixed_numbers_to_include) > k_combination_length:
     errori.append("Troppi numeri fissi per la lunghezza della combinazione")
     validazione_ok = False
+
+# Valida che i numeri fissi siano compatibili con il tipo di numeri generato
+if tipo_numeri_generazione == "Solo Pari":
+    for f_num in fixed_numbers_to_include:
+        if f_num % 2 != 0:
+            errori.append(f"Il numero fisso {f_num} è dispari ma hai selezionato 'Solo Pari'.")
+            validazione_ok = False
+elif tipo_numeri_generazione == "Solo Dispari":
+    for f_num in fixed_numbers_to_include:
+        if f_num % 2 == 0:
+            errori.append(f"Il numero fisso {f_num} è pari ma hai selezionato 'Solo Dispari'.")
+            validazione_ok = False
+
 
 # Mostra errori
 if errori:
@@ -237,6 +267,7 @@ with col2:
     st.write(f"📌 *Numeri fissi:* {fixed_numbers_to_include if fixed_numbers_to_include else 'Nessuno'}")
     st.write(f"🎯 *Garanzia:* {garanzia}")
     st.write(f"🔒 *Max combinazioni:* {max_combinations if max_combinations else 'Nessun limite'}")
+    st.write(f"🔄 *Tipo numeri:* {tipo_numeri_generazione}") # Nuovo riepilogo
     if seed_random > 0:
         st.write(f"🎲 *Seed:* {seed_random}")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -256,8 +287,21 @@ with col1:
             start_time.info("🔄 Avvio generazione...")
             
             # Generazione numeri sorgente
-            source_numbers_list = sorted(random.sample(range(range_min, range_max + 1), numero_di_numeri))
-            st.success(f"🎲 *Numeri sorgente generati:* {source_numbers_list}")
+            # Modifica qui per includere il filtro pari/dispari
+            if tipo_numeri_generazione == "Tutti":
+                potential_numbers = list(range(range_min, range_max + 1))
+            elif tipo_numeri_generazione == "Solo Pari":
+                potential_numbers = [n for n in range(range_min, range_max + 1) if n % 2 == 0]
+            else: # Solo Dispari
+                potential_numbers = [n for n in range(range_min, range_max + 1) if n % 2 != 0]
+
+            if numero_di_numeri > len(potential_numbers):
+                st.error(f"❌ Impossibile generare {numero_di_numeri} numeri. Ci sono solo {len(potential_numbers)} numeri {tipo_numeri_generazione.lower()} disponibili nel range specificato.")
+                start_time.empty()
+                st.stop() # Ferma l'esecuzione se non ci sono abbastanza numeri
+            
+            source_numbers_list = sorted(random.sample(potential_numbers, numero_di_numeri))
+            st.success(f"🎲 *Numeri sorgente generati ({tipo_numeri_generazione.lower()}):* {source_numbers_list}")
             
             # Generazione combinazioni
             with st.spinner("Generazione combinazioni iniziali..."):
@@ -292,7 +336,10 @@ with col1:
                 with col_stat1:
                     st.metric("🎯 Combinazioni", len(final_combinations))
                 with col_stat2:
-                    riduzione_perc = (1 - len(final_combinations)/len(full_combinations)) * 100
+                    if len(full_combinations) > 0: # Evita divisione per zero
+                        riduzione_perc = (1 - len(final_combinations)/len(full_combinations)) * 100
+                    else:
+                        riduzione_perc = 0.0
                     st.metric("📉 Riduzione", f"{riduzione_perc:.1f}%")
                 with col_stat3:
                     st.metric("🔢 Garanzia", garanzia)
@@ -369,6 +416,7 @@ with st.expander("❓ Aiuto e Suggerimenti"):
     - La garanzia deve essere minore della lunghezza combinazione
     - Usa numeri fissi per forzare certi numeri in tutte le combinazioni
     - Il seed ti permette di riprodurre gli stessi risultati
+    - *Tipo di numeri da generare*: Puoi scegliere di generare solo numeri pari, solo numeri dispari, o tutti i numeri nel range.
     
     *⚡ Performance:*
     - Combinazioni > 1000: potrebbero richiedere tempo
