@@ -3,6 +3,7 @@ import pandas as pd
 from itertools import combinations
 import random
 import io
+import base64 # Importato per la gestione dei download senza reset
 
 # Configurazione pagina
 st.set_page_config(
@@ -124,6 +125,16 @@ def reduce_combinations_with_guarantee_greedy(full_combinations, guarantee_size,
     progress_container.empty()
     return selected_combinations
 
+# Funzione per generare il link di download (per non resettare la pagina)
+def get_download_link(data, filename, mime_type, link_text):
+    b64 = base64.b64encode(data.encode()).decode()
+    return f'<a href="data:{mime_type};base64,{b64}" download="{filename}">{link_text}</a>'
+
+def get_excel_download_link(data, filename, link_text):
+    b64 = base64.b64encode(data).decode()
+    return f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">{link_text}</a>'
+
+
 # Header principale
 st.markdown('<h1 class="main-header">🎯 Generatore di Combinazioni con Garanzia</h1>', unsafe_allow_html=True)
 st.markdown("*Crea combinazioni ottimizzate con algoritmo greedy e garanzia personalizzabile*")
@@ -136,8 +147,8 @@ st.sidebar.markdown("Configura i parametri per la generazione delle combinazioni
 # Parametri principali
 numero_di_numeri = st.sidebar.slider(
     "📊 Numeri totali da generare", 
-    min_value=5, max_value=50, value=10,
-    help="Quanti numeri casuali generare dall'intervallo specificato"
+    min_value=5, max_value=50, value=10, # Max_value verrà aggiornato dinamicamente
+    help="Quanti numeri casuali generare dall'intervallo specificato. Seleziona un numero pari ai 'Numeri fissi' per usare solo quelli."
 )
 
 col_range1, col_range2 = st.sidebar.columns(2)
@@ -145,6 +156,17 @@ with col_range1:
     range_min = st.number_input("Min", min_value=1, max_value=50, value=1)
 with col_range2:
     range_max = st.number_input("Max", min_value=10, max_value=100, value=40)
+
+# Aggiorna il max_value del slider numero_di_numeri
+# Questo va fatto dopo che range_min e range_max sono definiti
+max_numbers_in_range = range_max - range_min + 1
+numero_di_numeri = st.sidebar.slider(
+    "📊 Numeri totali da generare", 
+    min_value=5, max_value=max_numbers_in_range, value=min(10, max_numbers_in_range), # Ensure value doesn't exceed new max
+    key="num_gen_slider", # Aggiunto una key per evitare problemi di Streamlit
+    help="Quanti numeri casuali generare dall'intervallo specificato. Seleziona un numero pari ai 'Numeri fissi' per usare solo quelli."
+)
+
 
 k_combination_length = st.sidebar.slider(
     "🔢 Lunghezza combinazione", 
@@ -161,9 +183,9 @@ garanzia = st.sidebar.slider(
 # Parametri avanzati
 with st.sidebar.expander("⚙ Parametri Avanzati"):
     numeri_fissi_input = st.text_input(
-        "📌 Numeri fissi (separati da virgola)", 
+        "📌 Numeri da includere (separati da virgola)", 
         "",
-        help="Numeri che devono apparire in tutte le combinazioni"
+        help="Numeri che DEVONO essere inclusi nel set di numeri sorgente. Se il numero di questi numeri fissi è pari a 'Numeri totali da generare', allora verranno usati SOLO questi numeri come sorgente."
     )
     
     max_combinazioni_input = st.text_input(
@@ -191,9 +213,11 @@ fixed_numbers_to_include = []
 if numeri_fissi_input.strip():
     try:
         fixed_numbers_to_include = [int(x.strip()) for x in numeri_fissi_input.split(',')]
+        # Filtra i numeri fissi che sono fuori dal range definito
         fixed_numbers_to_include = [x for x in fixed_numbers_to_include if range_min <= x <= range_max]
     except ValueError:
-        st.sidebar.error("❌ Formato numeri fissi non valido")
+        st.sidebar.error("❌ Formato numeri da includere non valido")
+        fixed_numbers_to_include = [] # Svuota per evitare errori successivi
 
 max_combinations = None
 if max_combinazioni_input.strip():
@@ -217,16 +241,17 @@ if range_max <= range_min:
     validazione_ok = False
 
 # Calcolo dei numeri disponibili in base al tipo selezionato
-available_numbers_in_range = []
+available_numbers_in_range_filtered = []
 for num in range(range_min, range_max + 1):
     if tipo_numeri_generazione == "Solo Pari" and num % 2 != 0:
         continue
     if tipo_numeri_generazione == "Solo Dispari" and num % 2 == 0:
         continue
-    available_numbers_in_range.append(num)
+    available_numbers_in_range_filtered.append(num)
 
-if numero_di_numeri > len(available_numbers_in_range):
-    errori.append(f"Troppi numeri richiesti per l'intervallo specificato e il filtro '{tipo_numeri_generazione}'. Numeri disponibili: {len(available_numbers_in_range)}")
+# Rivedi la validazione per i numeri totali da generare
+if numero_di_numeri > len(available_numbers_in_range_filtered):
+    errori.append(f"Troppi numeri richiesti ({numero_di_numeri}) per l'intervallo specificato e il filtro '{tipo_numeri_generazione}'. Numeri disponibili: {len(available_numbers_in_range_filtered)}")
     validazione_ok = False
 
 if garanzia >= k_combination_length:
@@ -234,26 +259,38 @@ if garanzia >= k_combination_length:
     validazione_ok = False
 
 if len(fixed_numbers_to_include) > k_combination_length:
-    errori.append("Troppi numeri fissi per la lunghezza della combinazione")
+    errori.append("Troppi numeri da includere per la lunghezza della combinazione")
     validazione_ok = False
 
 # Valida che i numeri fissi siano compatibili con il tipo di numeri generato
 if tipo_numeri_generazione == "Solo Pari":
     for f_num in fixed_numbers_to_include:
         if f_num % 2 != 0:
-            errori.append(f"Il numero fisso {f_num} è dispari ma hai selezionato 'Solo Pari'.")
+            errori.append(f"Il numero da includere {f_num} è dispari ma hai selezionato 'Solo Pari'.")
             validazione_ok = False
 elif tipo_numeri_generazione == "Solo Dispari":
     for f_num in fixed_numbers_to_include:
         if f_num % 2 == 0:
-            errori.append(f"Il numero fisso {f_num} è pari ma hai selezionato 'Solo Dispari'.")
+            errori.append(f"Il numero da includere {f_num} è pari ma hai selezionato 'Solo Dispari'.")
             validazione_ok = False
+
+# Validazione: Se numeri fissi sono più del numero_di_numeri, errore
+if len(fixed_numbers_to_include) > numero_di_numeri:
+    errori.append(f"Il numero di 'Numeri da includere' ({len(fixed_numbers_to_include)}) non può essere maggiore di 'Numeri totali da generare' ({numero_di_numeri}).")
+    validazione_ok = False
+
+# Validazione: Tutti i numeri fissi devono essere nel range filtrato
+for f_num in fixed_numbers_to_include:
+    if f_num not in available_numbers_in_range_filtered:
+        errori.append(f"Il numero da includere {f_num} non è valido con il range e/o il filtro pari/dispari selezionato.")
+        validazione_ok = False
 
 
 # Mostra errori
 if errori:
     for errore in errori:
         st.error(f"❌ {errore}")
+    st.info("💡 Correggi gli errori per abilitare la generazione.")
 
 # Layout principale
 col1, col2 = st.columns([2, 1])
@@ -261,10 +298,10 @@ col1, col2 = st.columns([2, 1])
 with col2:
     st.markdown('<div class="info-box">', unsafe_allow_html=True)
     st.subheader("📋 Riepilogo Configurazione")
-    st.write(f"🎲 *Numeri totali:* {numero_di_numeri}")
+    st.write(f"🎲 *Numeri totali da generare:* {numero_di_numeri}")
     st.write(f"📊 *Range:* {range_min} - {range_max}")
     st.write(f"🔢 *Lunghezza combinazione:* {k_combination_length}")
-    st.write(f"📌 *Numeri fissi:* {fixed_numbers_to_include if fixed_numbers_to_include else 'Nessuno'}")
+    st.write(f"📌 *Numeri da includere:* {fixed_numbers_to_include if fixed_numbers_to_include else 'Nessuno'}")
     st.write(f"🎯 *Garanzia:* {garanzia}")
     st.write(f"🔒 *Max combinazioni:* {max_combinations if max_combinations else 'Nessun limite'}")
     st.write(f"🔄 *Tipo numeri:* {tipo_numeri_generazione}") # Nuovo riepilogo
@@ -295,12 +332,28 @@ with col1:
             else: # Solo Dispari
                 potential_numbers = [n for n in range(range_min, range_max + 1) if n % 2 != 0]
 
-            if numero_di_numeri > len(potential_numbers):
-                st.error(f"❌ Impossibile generare {numero_di_numeri} numeri. Ci sono solo {len(potential_numbers)} numeri {tipo_numeri_generazione.lower()} disponibili nel range specificato.")
+            # Rimuovi i numeri fissi da potential_numbers prima del campionamento casuale
+            # Così eviti di campionarli due volte o di avere duplicati in source_numbers_list
+            # e ti assicuri che il campionamento casuale prenda solo i "restanti"
+            temp_potential_numbers = [n for n in potential_numbers if n not in fixed_numbers_to_include]
+            
+            # Determina quanti numeri casuali dobbiamo ancora pescare
+            numbers_to_sample = numero_di_numeri - len(fixed_numbers_to_include)
+
+            if numbers_to_sample < 0: # Questo caso dovrebbe essere già catturato dalle validazioni
+                st.error("Errore interno: numeri da campionare negativi. Controllare le impostazioni dei numeri fissi.")
+                start_time.empty()
+                st.stop()
+
+            if numbers_to_sample > len(temp_potential_numbers):
+                st.error(f"❌ Impossibile generare {numero_di_numeri} numeri. Hai specificato {len(fixed_numbers_to_include)} numeri da includere. Non ci sono abbastanza numeri casuali disponibili ({len(temp_potential_numbers)}) nel range e con i filtri per completare i restanti {numbers_to_sample} numeri.")
                 start_time.empty()
                 st.stop() # Ferma l'esecuzione se non ci sono abbastanza numeri
-            
-            source_numbers_list = sorted(random.sample(potential_numbers, numero_di_numeri))
+
+            sampled_numbers = random.sample(temp_potential_numbers, numbers_to_sample)
+            source_numbers_list = sorted(list(set(fixed_numbers_to_include + sampled_numbers)))
+
+
             st.success(f"🎲 *Numeri sorgente generati ({tipo_numeri_generazione.lower()}):* {source_numbers_list}")
             
             # Generazione combinazioni
@@ -324,8 +377,32 @@ with col1:
                     final_combinations, 
                     columns=[f'N{i+1}' for i in range(k_combination_length)]
                 )
+                
+                # Statistiche per l'intestazione
                 source_str = ','.join(str(n) for n in source_numbers_list)
-                df_output.insert(0, 'Numeri_sorgente', source_str)
+                if len(full_combinations) > 0: # Evita divisione per zero
+                    riduzione_perc = (1 - len(final_combinations)/len(full_combinations)) * 100
+                else:
+                    riduzione_perc = 0.0
+
+                header_info = [
+                    f"Generazione Combinazioni - Riepilogo",
+                    f"Data Generazione: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    f"Numeri totali da generare: {numero_di_numeri}",
+                    f"Range: {range_min}-{range_max}",
+                    f"Lunghezza Combinazione: {k_combination_length}",
+                    f"Numeri da includere: {fixed_numbers_to_include if fixed_numbers_to_include else 'Nessuno'}",
+                    f"Garanzia: {garanzia}",
+                    f"Max Combinazioni: {max_combinations if max_combinations else 'Nessun limite'}",
+                    f"Tipo Numeri: {tipo_numeri_generazione}",
+                    f"Seed: {seed_random if seed_random > 0 else 'Casuale'}",
+                    f"Numeri sorgente generati: {source_str}",
+                    f"Combinazioni iniziali generate: {len(full_combinations):,}",
+                    f"Combinazioni finali: {len(final_combinations):,}",
+                    f"Riduzione: {riduzione_perc:.1f}%",
+                    "", # Riga vuota per separazione
+                    "Combinazioni:"
+                ]
                 
                 # Visualizzazione risultati
                 st.markdown("---")
@@ -336,10 +413,6 @@ with col1:
                 with col_stat1:
                     st.metric("🎯 Combinazioni", len(final_combinations))
                 with col_stat2:
-                    if len(full_combinations) > 0: # Evita divisione per zero
-                        riduzione_perc = (1 - len(final_combinations)/len(full_combinations)) * 100
-                    else:
-                        riduzione_perc = 0.0
                     st.metric("📉 Riduzione", f"{riduzione_perc:.1f}%")
                 with col_stat3:
                     st.metric("🔢 Garanzia", garanzia)
@@ -347,8 +420,10 @@ with col1:
                 # Tabella risultati
                 st.dataframe(df_output, use_container_width=True, height=400)
                 
-                # Download CSV
+                # Generazione file CSV con intestazione
                 csv_buffer = io.StringIO()
+                for line in header_info:
+                    csv_buffer.write(line + "\n") # Scrive ogni riga dell'header
                 df_output.to_csv(csv_buffer, index=False)
                 csv_data = csv_buffer.getvalue()
                 
@@ -356,29 +431,26 @@ with col1:
                 
                 col_download1, col_download2 = st.columns(2)
                 with col_download1:
-                    st.download_button(
-                        label="📁 Scarica CSV",
-                        data=csv_data,
-                        file_name=filename,
-                        mime="text/csv",
-                        use_container_width=True
-                    )
+                    # Usiamo il link di download per non resettare la pagina
+                    st.markdown(get_download_link(csv_data, filename, "text/csv", "📁 Scarica CSV"), unsafe_allow_html=True)
                 
                 with col_download2:
-                    # Crea anche un Excel
+                    # Genera anche un Excel con intestazione
                     excel_buffer = io.BytesIO()
                     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df_output.to_excel(writer, sheet_name='Combinazioni', index=False)
+                        # Scrivi l'intestazione come un DataFrame temporaneo
+                        header_df = pd.DataFrame(header_info)
+                        header_df.to_excel(writer, sheet_name='Riepilogo e Combinazioni', index=False, header=False)
+                        
+                        # Inizia il DataFrame delle combinazioni dopo l'header
+                        # Calcola la riga di partenza per il dataframe dei risultati
+                        startrow = len(header_info) 
+                        df_output.to_excel(writer, sheet_name='Riepilogo e Combinazioni', index=False, startrow=startrow)
                     excel_data = excel_buffer.getvalue()
                     
                     filename_excel = filename.replace('.csv', '.xlsx')
-                    st.download_button(
-                        label="📊 Scarica Excel",
-                        data=excel_data,
-                        file_name=filename_excel,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
+                    # Usiamo il link di download per non resettare la pagina
+                    st.markdown(get_excel_download_link(excel_data, filename_excel, "📊 Scarica Excel"), unsafe_allow_html=True)
                 
                 start_time.empty()
                 
@@ -406,21 +478,21 @@ with st.expander("📖 Come Funziona l'Algoritmo"):
 with st.expander("❓ Aiuto e Suggerimenti"):
     st.markdown("""
     *🔧 Parametri Principali:*
-    - *Numeri totali*: Quanti numeri casuali generare (più numeri = più combinazioni)
-    - *Range*: Intervallo da cui pescare i numeri
-    - *Lunghezza combinazione*: Quanti numeri per ogni combinazione
-    - *Garanzia*: Dimensione dei sottoinsiemi da garantire
+    - *Numeri totali da generare*: Quanti numeri generare (più numeri = più combinazioni). **Non può superare i numeri disponibili nel range selezionato.**
+    - *Range*: Intervallo da cui pescare i numeri.
+    - *Lunghezza combinazione*: Quanti numeri per ogni combinazione.
+    - *Garanzia*: Dimensione dei sottoinsiemi da garantire.
     
     *💡 Suggerimenti:*
-    - Inizia con parametri piccoli per testare
-    - La garanzia deve essere minore della lunghezza combinazione
-    - Usa numeri fissi per forzare certi numeri in tutte le combinazioni
-    - Il seed ti permette di riprodurre gli stessi risultati
+    - Inizia con parametri piccoli per testare.
+    - La garanzia deve essere minore della lunghezza combinazione.
+    - **Numeri da includere (precedentemente "Numeri fissi")**: Inserisci i numeri che DEVONO apparire nel set di numeri sorgente. Se il numero di elementi che inserisci qui è uguale a 'Numeri totali da generare', allora il programma userà SOLO questi numeri come sorgente, senza generarne altri casualmente.
+    - Il seed ti permette di riprodurre gli stessi risultati.
     - *Tipo di numeri da generare*: Puoi scegliere di generare solo numeri pari, solo numeri dispari, o tutti i numeri nel range.
     
     *⚡ Performance:*
-    - Combinazioni > 1000: potrebbero richiedere tempo
-    - Usa 'Max combinazioni' per limitare il risultato
+    - Combinazioni > 1000: potrebbero richiedere tempo.
+    - Usa 'Max combinazioni' per limitare il risultato.
     """)
 
 st.markdown("---")
