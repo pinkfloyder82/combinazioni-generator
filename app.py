@@ -508,7 +508,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666; font-size: 0.8em;'>
-        🚀 Powered by Streamlit | 🎯 Algoritmo Greedy Ottimizzato<br>
+        🚀 Powered by Streamlit <br>
         Creato da Giuseppe Andolfi<br>
         dammi il tuo feedback: <a href="mailto:andolfi.giuseppe@gmail.com">andolfi.giuseppe@gmail.com</a>
     </div>
