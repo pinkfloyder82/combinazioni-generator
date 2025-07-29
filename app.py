@@ -145,6 +145,8 @@ st.markdown(
         Supporta lo sviluppo: <a href="https://paypal.me/peppino82" target="_blank">☕ Offrimi un caffè su PayPal</a>
     </div>
     """,
+    unsafe_allow_html=True  # <- mancava questo parametro, necessario per HTML
+)
 st.markdown("---")
 
 # Sidebar per i parametri
