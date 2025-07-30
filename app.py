@@ -34,76 +34,65 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def generate_combinations_with_fixed(source_numbers, k, fixed_numbers=None):
-    if fixed_numbers is None:
-        fixed_numbers = []
+# Funzione per generare tutte le combinazioni di k elementi da un pool di numeri
+def generate_all_k_combinations_from_pool(source_numbers_pool, k):
+    """
+    Genera tutte le combinazioni di k numeri dal pool fornito.
 
-    if not isinstance(source_numbers, list) or not all(isinstance(n, int) for n in source_numbers):
-        raise ValueError("La lista 'source_numbers' deve contenere solo numeri interi.")
+    Args:
+        source_numbers_pool (list): La lista (pool) di numeri da cui generare le combinazioni.
+        k (int): La lunghezza desiderata di ogni combinazione.
+
+    Returns:
+        list: Una lista di tuple, dove ogni tupla è una combinazione ordinata di k numeri.
+    """
+    if not isinstance(source_numbers_pool, list) or not all(isinstance(n, int) for n in source_numbers_pool):
+        raise ValueError("Il 'pool' di numeri sorgente deve contenere solo numeri interi.")
     if not isinstance(k, int) or k <= 0:
-        raise ValueError("La lunghezza 'k' deve essere un numero intero positivo.")
-    if not isinstance(fixed_numbers, list) or not all(isinstance(n, int) for n in fixed_numbers):
-        raise ValueError("La lista 'fixed_numbers' deve contenere solo numeri interi.")
+        raise ValueError("La lunghezza 'k' della combinazione deve essere un numero intero positivo.")
 
-    # Nuova validazione spostata qui: se i numeri fissi sono più lunghi di k, è un problema per la combinazione singola.
-    if len(fixed_numbers) > k:
-        raise ValueError("Il numero di numeri fissi non può essere maggiore della lunghezza della singola combinazione (k).")
+    if k > len(source_numbers_pool):
+        raise ValueError(f"Impossibile generare combinazioni di lunghezza {k} da un pool di soli {len(source_numbers_pool)} numeri.")
 
-    # Controlliamo che tutti i numeri fissi siano presenti nella source_numbers
-    for f_num in fixed_numbers:
-        if f_num not in source_numbers:
-            raise ValueError(f"Il numero fisso {f_num} non è presente nella lista dei numeri sorgente fornita per la generazione.")
+    # Genera tutte le combinazioni e le ordina per consistenza
+    all_combinations = [tuple(sorted(combo)) for combo in combinations(source_numbers_pool, k)]
+    return sorted(list(set(all_combinations))) # set per unicità, sorted per ordine consistente
 
-    remaining_numbers = [num for num in source_numbers if num not in fixed_numbers]
-    elements_to_pick = k - len(fixed_numbers)
-
-    if elements_to_pick == 0:
-        return [tuple(sorted(fixed_numbers))]
-
-    if elements_to_pick > len(remaining_numbers):
-        raise ValueError("Numeri insufficienti nella lista sorgente (dopo aver escluso i numeri fissi) per completare la combinazione della lunghezza richiesta (k).")
-
-    generated_combinations_parts = combinations(remaining_numbers, elements_to_pick)
-
-    final_combinations = []
-    for combo_part in generated_combinations_parts:
-        full_combo = list(combo_part) + fixed_numbers
-        final_combinations.append(tuple(sorted(full_combo)))
-
-    return sorted(list(set(final_combinations)))
 
 def reduce_combinations_with_guarantee_greedy(full_combinations, guarantee_size, max_combinations=None):
     if not full_combinations:
         st.warning("Nessuna combinazione da ridurre. Assicurati che le combinazioni iniziali siano state generate.")
         return []
 
-    # Se guarantee_size è uguale alla lunghezza della combinazione, ogni combinazione è un suo stesso subset richiesto.
-    # Questo algoritmo è più efficiente se si evita di generare subset che sono la combinazione stessa.
-    # Se guarantee_size = k_combination_length, la garanzia è che ogni combinazione debba essere presente.
-    # In quel caso, la riduzione non ha senso, a meno di limitare max_combinations.
+    if guarantee_size <= 0:
+        st.error("Errore: La dimensione della garanzia deve essere un numero positivo.")
+        return []
     if guarantee_size > len(full_combinations[0]):
         st.error("Errore: La dimensione della garanzia non può essere maggiore della lunghezza della combinazione stessa.")
         return []
+
+    # Caso speciale: se guarantee_size è uguale alla lunghezza della combinazione
+    # In questo caso, ogni combinazione è un "target" a sé. L'algoritmo non ridurrebbe
+    # ma selezionerebbe solo le combinazioni esatte. Applichiamo solo il limite max_combinations, se presente.
     if guarantee_size == len(full_combinations[0]):
-        # Se la garanzia è sulla combinazione intera, non c'è riduzione da fare se non per max_combinations
-        st.info("Garanzia impostata alla lunghezza della combinazione. Non verrà applicata ulteriore riduzione oltre il limite massimo di combinazioni, se specificato.")
+        st.info("Garanzia impostata alla lunghezza della combinazione (esatta). Non verrà applicata ulteriore riduzione oltre il limite massimo di combinazioni, se specificato. Verranno incluse tutte le combinazioni iniziali.")
         if max_combinations is not None and len(full_combinations) > max_combinations:
-            return sorted(random.sample(full_combinations, max_combinations)) # Prendo un campione casuale se c'è limite
+            return sorted(random.sample(full_combinations, max_combinations)) # Prendo un campione casuale
         else:
-            return full_combinations # Ritorna tutte le combinazioni se non c'è limite o è inferiore
+            return full_combinations # Ritorna tutte le combinazioni se non c'è limite
 
     required_subsets = set()
     
     progress_container = st.container()
     
     with progress_container:
-        st.info("🔄 Calcolo sottoinsiemi da garantire...")
+        st.info("🔄 Calcolo sottoinsiemi da garantire (target sets)...")
         progress_bar = st.progress(0)
         
-        # Stima il numero di iterazioni per la progress bar per evitare aggiornamenti troppo frequenti
-        # e per gestire grandi numeri di combinazioni
         num_full_combos = len(full_combinations)
-        update_interval = max(1, num_full_combos // 100) # Aggiorna almeno 100 volte
+        update_interval = max(1, num_full_combos // 100)
+        if num_full_combos < 1000:
+            update_interval = 1
 
         for i, combo in enumerate(full_combinations):
             for subset in combinations(combo, guarantee_size):
@@ -111,24 +100,21 @@ def reduce_combinations_with_guarantee_greedy(full_combinations, guarantee_size,
             if (i + 1) % update_interval == 0 or (i + 1) == num_full_combos:
                 progress_bar.progress((i + 1) / num_full_combos)
         
-        # Una volta calcolati tutti i sottoinsiemi richiesti, azzera la progress bar per la fase successiva
         progress_bar.empty()
         
     covered_subsets = set()
     selected_combinations = []
-    combos_remaining = set(full_combinations) # Lavoriamo su un set per rimozioni efficienti
+    combos_remaining = set(full_combinations)
 
     with progress_container:
         st.info(f"🎯 Selezione combinazioni con algoritmo greedy per coprire {len(required_subsets):,} sottoinsiemi...")
         progress_bar2 = st.progress(0)
         
         iteration = 0
-        while covered_subsets != required_subsets and combos_remaining: # Aggiunto check combos_remaining
+        while covered_subsets != required_subsets and combos_remaining:
             best_combo = None
-            best_new_coverage = -1 # Inizia da -1, così anche 0 nuovi subsets è un miglioramento
+            best_new_coverage = -1
 
-            # Per migliorare le performance su grandi dataset, potremmo non iterare su tutti i combos_remaining ad ogni step
-            # Ma per ora, manteniamo l'iterazione completa.
             for combo in combos_remaining:
                 new_subsets = set(combinations(combo, guarantee_size))
                 uncovered = new_subsets - covered_subsets
@@ -136,8 +122,8 @@ def reduce_combinations_with_guarantee_greedy(full_combinations, guarantee_size,
                     best_new_coverage = len(uncovered)
                     best_combo = combo
             
-            if best_new_coverage == 0: # Nessuna combo rimanente può coprire nuovi subsets
-                st.warning("⚠ Impossibile migliorare la copertura con le combinazioni rimanenti. Uscita anticipata.")
+            if best_new_coverage == 0:
+                st.warning("⚠ Nessuna combinazione rimanente può coprire nuovi sottoinsiemi. Uscita anticipata dall'algoritmo greedy.")
                 break
 
             if best_combo is None:
@@ -146,10 +132,9 @@ def reduce_combinations_with_guarantee_greedy(full_combinations, guarantee_size,
 
             selected_combinations.append(best_combo)
             covered_subsets.update(set(combinations(best_combo, guarantee_size)))
-            combos_remaining.remove(best_combo) # Rimuovi la combinazione selezionata
+            combos_remaining.remove(best_combo)
             
             iteration += 1
-            # Aggiorna la progress bar in base alla percentuale di copertura raggiunta
             if len(required_subsets) > 0:
                 progress = min(len(covered_subsets) / len(required_subsets), 1.0)
                 progress_bar2.progress(progress)
@@ -158,11 +143,10 @@ def reduce_combinations_with_guarantee_greedy(full_combinations, guarantee_size,
                 st.info(f"🔒 Raggiunto limite massimo di combinazioni: {max_combinations}")
                 break
     
-    # Pulisce i progress bar
     progress_container.empty()
-    return sorted(selected_combinations) # Ordina le combinazioni finali per consistenza
+    return sorted(selected_combinations)
 
-# Funzione per generare il link di download (per non resettare la pagina)
+# Funzioni per il download
 def get_download_link(data, filename, mime_type, link_text):
     b64 = base64.b64encode(data.encode()).decode()
     return f'<a href="data:{mime_type};base64,{b64}" download="{filename}">{link_text}</a>'
@@ -192,90 +176,86 @@ st.sidebar.markdown("Configura i parametri per la generazione delle combinazioni
 
 col_range1, col_range2 = st.sidebar.columns(2)
 with col_range1:
-    range_min = st.number_input("Min", min_value=1, max_value=50, value=1)
+    range_min = st.number_input("Min", min_value=1, max_value=50, value=1, key="range_min")
 with col_range2:
-    range_max = st.number_input("Max", min_value=10, max_value=100, value=40)
+    range_max = st.number_input("Max", min_value=10, max_value=100, value=40, key="range_max")
 
 max_numbers_in_range = range_max - range_min + 1
 
-# Calcolo preliminare dei numeri disponibili con il filtro pari/dispari
-preliminary_potential_numbers = []
-for num in range(range_min, range_max + 1):
-    preliminary_potential_numbers.append(num)
+# Calcola il massimo valore possibile per il numero_di_numeri slider
+# che è il numero di elementi nel range (pre-filtri pari/dispari per la preview)
+max_possible_system_numbers_raw = range_max - range_min + 1
 
-# NUOVA OPZIONE: Filtro numeri pari/dispari (prima del slider numero_di_numeri)
-tipo_numeri_generazione = st.sidebar.radio(
-    "Tipo di numeri da generare",
-    ("Tutti", "Solo Pari", "Solo Dispari"),
-    index=0,
-    help="Scegli se generare numeri pari, dispari o entrambi nel range specificato."
-)
-
-# Filtra preliminarmente i numeri disponibili in base al tipo selezionato
-filtered_for_slider_numbers = []
-for num in preliminary_potential_numbers:
-    if tipo_numeri_generazione == "Solo Pari" and num % 2 != 0:
-        continue
-    if tipo_numeri_generazione == "Solo Dispari" and num % 2 == 0:
-        continue
-    filtered_for_slider_numbers.append(num)
-
-# Aggiorna il max_value del slider numero_di_numeri
+# Slider "Numeri totali per il sistema"
 numero_di_numeri = st.sidebar.slider(
     "📊 Numeri totali per il sistema",
-    min_value=5, max_value=len(filtered_for_slider_numbers), value=min(10, len(filtered_for_slider_numbers)),
+    min_value=5, max_value=max_possible_system_numbers_raw, value=min(15, max_possible_system_numbers_raw), # Default 15 o max disponibile
     key="num_gen_slider",
-    help="Questo è il numero totale di numeri da cui verranno generate le combinazioni. "
-         "Se i 'Numeri da includere' (fissi) sono pari a questo valore, verranno usati SOLO quelli come base per il sistema."
+    help="Questo è il numero totale di numeri che formeranno il pool di base del tuo sistema. "
+         "Se i 'Numeri da includere' (fissi nel pool) sono pari a questo valore, verranno usati SOLO quelli come base per il sistema."
 )
 
 k_combination_length = st.sidebar.slider(
     "🔢 Lunghezza combinazione",
     min_value=3, max_value=10, value=5,
+    key="k_len_slider",
     help="Quanti numeri per ogni combinazione finale"
 )
 
 garanzia = st.sidebar.slider(
     "🎯 Garanzia",
-    min_value=2, max_value=min(k_combination_length - 1, k_combination_length), # Max guarantee cannot be k or more
-    value=min(3, k_combination_length -1), # Ensure default value is valid
-    help="Quanti numeri devono essere garantiti in comune. Deve essere inferiore della lunghezza combinazione."
+    min_value=1, # La garanzia può essere anche 1 (copertura minima)
+    max_value=k_combination_length, # Max guarantee can be k as well, it means covering all exact combinations
+    value=min(3, k_combination_length),
+    key="guarantee_slider",
+    help="Quanti numeri devono essere garantiti in comune in ciascun sottoinsieme. Deve essere minore o uguale della lunghezza combinazione."
 )
 
 # Parametri avanzati
 with st.sidebar.expander("⚙ Parametri Avanzati"):
+    # Spostato qui come richiesto
+    tipo_numeri_generazione = st.radio(
+        "Tipo di numeri da generare nel pool",
+        ("Tutti", "Solo Pari", "Solo Dispari"),
+        index=0,
+        key="tipo_numeri_gen_radio",
+        help="Scegli se i numeri casuali aggiunti al pool del sistema devono essere pari, dispari o entrambi nel range specificato."
+    )
+
     numeri_fissi_input = st.text_input(
-        "📌 Numeri da includere (separati da virgola)",
+        "📌 Numeri da includere nel pool (separati da virgola)",
         "",
-        help=f"Numeri che DEVONO essere inclusi nel pool di {numero_di_numeri} numeri base. "
-             "Verranno usati per completare il set di base, e i rimanenti verranno scelti casualmente. "
+        key="fixed_numbers_input",
+        help=f"Questi numeri saranno inclusi nel pool di {numero_di_numeri} numeri base. "
              "Se il loro numero è pari a 'Numeri totali per il sistema', verranno usati SOLO questi numeri."
     )
     
     max_combinazioni_input = st.text_input(
-        "🔒 Max combinazioni (vuoto = nessun limite)",
+        "🔒 Max combinazioni finali (vuoto = nessun limite)",
         "",
-        help="Limite massimo di combinazioni finali da selezionare dall'algoritmo greedy."
+        key="max_comb_input",
+        help="Limite massimo di combinazioni finali da selezionare dall'algoritmo greedy. Utile per controllare la dimensione del risultato."
     )
     
     seed_random = st.number_input(
         "🎲 Seed per casualità (0 = casuale)",
         min_value=0, max_value=9999, value=0,
-        help="Usa lo stesso seed per ottenere risultati riproducibili per la generazione dei numeri sorgente."
+        key="seed_input",
+        help="Usa lo stesso seed per ottenere risultati riproducibili per la generazione dei numeri casuali del pool."
     )
 
-# Elaborazione input
-fixed_numbers_to_include = []
+# Elaborazione input per i numeri fissi e il pool
+fixed_numbers_for_pool_construction = []
 if numeri_fissi_input.strip():
     try:
-        fixed_numbers_to_include = [int(x.strip()) for x in numeri_fissi_input.split(',')]
-        # Filtra i numeri fissi che sono fuori dal range definito o non corrispondono al filtro pari/dispari
-        fixed_numbers_to_include = [x for x in fixed_numbers_to_include if x in filtered_for_slider_numbers]
-        if len(fixed_numbers_to_include) != len([int(x.strip()) for x in numeri_fissi_input.split(',')]):
-             st.sidebar.warning("Alcuni 'Numeri da includere' sono stati ignorati perché fuori range o non conformi al filtro pari/dispari.")
+        raw_fixed_numbers = [int(x.strip()) for x in numeri_fissi_input.split(',')]
+        # Rimuovi duplicati e ordina per pulizia
+        fixed_numbers_for_pool_construction = sorted(list(set(raw_fixed_numbers)))
+        
     except ValueError:
-        st.sidebar.error("❌ Formato numeri da includere non valido")
-        fixed_numbers_to_include = []
+        st.sidebar.error("❌ Formato numeri da includere non valido. Inserire numeri interi separati da virgola.")
+        fixed_numbers_for_pool_construction = []
+
 
 max_combinations = None
 if max_combinazioni_input.strip():
@@ -284,7 +264,7 @@ if max_combinazioni_input.strip():
         if max_combinations <= 0:
             max_combinations = None
     except ValueError:
-        st.sidebar.error("❌ Formato max combinazioni non valido")
+        st.sidebar.error("❌ Formato max combinazioni non valido. Inserire un numero intero positivo.")
 
 # Set seed se specificato
 if seed_random > 0:
@@ -298,35 +278,59 @@ if range_max <= range_min:
     errori.append("Il range massimo deve essere maggiore del range minimo.")
     validazione_ok = False
 
-if garanzia >= k_combination_length:
-    errori.append("La garanzia deve essere minore della lunghezza della combinazione.")
+if garanzia > k_combination_length:
+    errori.append("La garanzia non può essere maggiore della lunghezza della combinazione.")
     validazione_ok = False
 
-# Validazione cruciale per i numeri fissi e il numero totale di numeri da generare
-if len(fixed_numbers_to_include) > numero_di_numeri:
-    errori.append(f"Il numero di 'Numeri da includere' ({len(fixed_numbers_to_include)}) non può essere maggiore di 'Numeri totali per il sistema' ({numero_di_numeri}).")
+# Validazione: "Numeri da includere" (fissi nel pool) non devono essere fuori range/tipo
+# e la loro quantità non può superare il "Numeri totali per il sistema"
+valid_fixed_numbers_in_range_and_type = []
+for num in fixed_numbers_for_pool_construction:
+    if range_min <= num <= range_max:
+        if tipo_numeri_generazione == "Solo Pari" and num % 2 != 0:
+            continue
+        if tipo_numeri_generazione == "Solo Dispari" and num % 2 == 0:
+            continue
+        valid_fixed_numbers_in_range_and_type.append(num)
+        
+if len(valid_fixed_numbers_in_range_and_type) != len(fixed_numbers_for_pool_construction):
+    st.sidebar.warning("Alcuni 'Numeri da includere' sono stati ignorati perché fuori range o non conformi al filtro pari/dispari. Verranno considerati solo i validi.")
+fixed_numbers_for_pool_construction = valid_fixed_numbers_in_range_and_type # Aggiorna la lista dei fissi validi
+
+
+if len(fixed_numbers_for_pool_construction) > numero_di_numeri:
+    errori.append(f"Il numero di 'Numeri da includere' ({len(fixed_numbers_for_pool_construction)}) non può essere maggiore di 'Numeri totali per il sistema' ({numero_di_numeri}).")
     validazione_ok = False
 
-# Non è più valido che len(fixed_numbers_to_include) > k_combination_length sia un errore qui.
-# Questo controllo è stato spostato dentro generate_combinations_with_fixed per la singola combinazione.
+# Calcola il numero massimo di numeri casuali che possiamo estrarre dal range filtrato,
+# dopo aver escluso i fissi già presenti.
+potential_numbers_for_sampling = []
+for num in range(range_min, range_max + 1):
+    if num in fixed_numbers_for_pool_construction: # Escludi i fissi che saranno nel pool
+        continue
+    if tipo_numeri_generazione == "Solo Pari" and num % 2 != 0:
+        continue
+    if tipo_numeri_generazione == "Solo Dispari" and num % 2 == 0:
+        continue
+    potential_numbers_for_sampling.append(num)
 
-# Validazione: Se numeri_di_numeri è maggiore dei numeri disponibili dopo il filtro
-if numero_di_numeri > len(filtered_for_slider_numbers):
-    errori.append(f"Impossibile generare {numero_di_numeri} numeri totali per il sistema. "
-                 f"Con il range e il filtro '{tipo_numeri_generazione}', sono disponibili solo {len(filtered_for_slider_numbers)} numeri.")
-    validazione_ok = False
-
-# Validazione: Non abbastanza numeri rimanenti per formare k-lunghezza se si usano fissi
-if k_combination_length - len(fixed_numbers_to_include) < 0:
-    errori.append(f"La lunghezza della combinazione ({k_combination_length}) è inferiore al numero di numeri da includere ({len(fixed_numbers_to_include)}).")
-    validazione_ok = False
-
-if k_combination_length - len(fixed_numbers_to_include) > len(filtered_for_slider_numbers) - len(fixed_numbers_to_include):
-    # Questo controlla se ci sono abbastanza numeri casuali da pescare tra i 'remaining_numbers'
-    # per raggiungere k_combination_length.
-    if len(fixed_numbers_to_include) < k_combination_length: # Solo se dobbiamo pescare numeri aggiuntivi
-        errori.append(f"Non ci sono abbastanza numeri disponibili ({len(filtered_for_slider_numbers) - len(fixed_numbers_to_include)}) per formare combinazioni di lunghezza {k_combination_length} con i {len(fixed_numbers_to_include)} numeri fissi specificati.")
+# Validazione: Ci sono abbastanza numeri disponibili per formare il pool del sistema?
+numbers_to_sample_for_pool_size = numero_di_numeri - len(fixed_numbers_for_pool_construction)
+if numbers_to_sample_for_pool_size > 0: # Se dobbiamo pescare numeri casuali
+    if numbers_to_sample_for_pool_size > len(potential_numbers_for_sampling):
+        errori.append(f"Impossibile creare un pool di {numero_di_numeri} numeri. "
+                     f"Hai {len(fixed_numbers_for_pool_construction)} numeri fissi e solo {len(potential_numbers_for_sampling)} numeri casuali disponibili nel range e con i filtri. "
+                     f"Servono {numbers_to_sample_for_pool_size} numeri casuali in più.")
         validazione_ok = False
+elif numbers_to_sample_for_pool_size < 0:
+    # Questo caso dovrebbe essere già catturato dal check `len(fixed_numbers_for_pool_construction) > numero_di_numeri`
+    pass
+
+
+# Validazione: Se k (lunghezza combinazione) è maggiore del numero totale di numeri del pool
+if k_combination_length > numero_di_numeri:
+    errori.append(f"La lunghezza della combinazione ({k_combination_length}) non può essere maggiore del 'Numeri totali per il sistema' ({numero_di_numeri}).")
+    validazione_ok = False
 
 
 # Mostra errori
@@ -344,10 +348,10 @@ with col2:
     st.write(f"🎲 *Numeri totali per il sistema:* {numero_di_numeri}")
     st.write(f"📊 *Range:* {range_min} - {range_max}")
     st.write(f"🔢 *Lunghezza combinazione:* {k_combination_length}")
-    st.write(f"📌 *Numeri da includere:* {fixed_numbers_to_include if fixed_numbers_to_include else 'Nessuno'}")
+    st.write(f"📌 *Numeri da includere nel pool:* {fixed_numbers_for_pool_construction if fixed_numbers_for_pool_construction else 'Nessuno'}")
     st.write(f"🎯 *Garanzia:* {garanzia}")
-    st.write(f"🔒 *Max combinazioni:* {max_combinations if max_combinations else 'Nessun limite'}")
-    st.write(f"🔄 *Tipo numeri:* {tipo_numeri_generazione}")
+    st.write(f"🔒 *Max combinazioni finali:* {max_combinations if max_combinations else 'Nessun limite'}")
+    st.write(f"🔄 *Tipo numeri nel pool:* {tipo_numeri_generazione}")
     if seed_random > 0:
         st.write(f"🎲 *Seed:* {seed_random}")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -366,55 +370,32 @@ with col1:
             start_time = st.empty()
             start_time.info("🔄 Avvio generazione...")
             
-            # --- LOGICA AGGIORNATA PER LA GENERAZIONE DELLA source_numbers_list ---
-            # Filtra i numeri disponibili nel range in base al tipo (pari/dispari)
-            potential_numbers_filtered_by_type = []
-            for num in range(range_min, range_max + 1):
-                if tipo_numeri_generazione == "Solo Pari" and num % 2 != 0:
-                    continue
-                if tipo_numeri_generazione == "Solo Dispari" and num % 2 == 0:
-                    continue
-                potential_numbers_filtered_by_type.append(num)
-
-            # Rimuovi i numeri fissi dal pool di numeri da cui campionare casualmente
-            temp_potential_numbers_for_sampling = [n for n in potential_numbers_filtered_by_type if n not in fixed_numbers_to_include]
+            # --- LOGICA DI COSTRUZIONE DEL POOL DI NUMERI DEL SISTEMA (source_numbers_list) ---
+            # Questo è il pool di `numero_di_numeri` elementi da cui verranno generate tutte le combinazioni
             
-            # Calcola quanti numeri casuali dobbiamo ancora pescare
-            numbers_to_sample = numero_di_numeri - len(fixed_numbers_to_include)
-
-            if numbers_to_sample < 0: # Questo caso dovrebbe essere già catturato dalle validazioni
-                st.error("Errore interno: numeri da campionare negativi. Controllare le impostazioni dei numeri fissi.")
-                start_time.empty()
-                st.stop()
-
-            # Campiona i numeri casuali necessari, se ce ne sono
+            # Campiona i numeri casuali necessari per raggiungere la dimensione del pool,
+            # escludendo i numeri fissi già scelti e rispettando i filtri.
             sampled_numbers = []
-            if numbers_to_sample > 0:
-                if numbers_to_sample > len(temp_potential_numbers_for_sampling):
-                    st.error(f"❌ Impossibile generare {numero_di_numeri} numeri totali. Non ci sono abbastanza numeri casuali disponibili ({len(temp_potential_numbers_for_sampling)}) nel range e con i filtri per completare i restanti {numbers_to_sample} numeri.")
-                    start_time.empty()
-                    st.stop()
-                sampled_numbers = random.sample(temp_potential_numbers_for_sampling, numbers_to_sample)
+            if numbers_to_sample_for_pool_size > 0: # Se dobbiamo pescare numeri casuali
+                sampled_numbers = random.sample(potential_numbers_for_sampling, numbers_to_sample_for_pool_size)
             
-            # Costruisci la lista finale dei numeri sorgente (fissi + campionati, unici e ordinati)
-            source_numbers_list = sorted(list(set(fixed_numbers_to_include + sampled_numbers)))
-            # --- FINE LOGICA AGGIORNATA ---
+            # Costruisci la lista finale dei numeri sorgente (pool del sistema: fissi + campionati, unici e ordinati)
+            source_numbers_list = sorted(list(set(fixed_numbers_for_pool_construction + sampled_numbers)))
+            
+            # Doppia validazione finale sulla dimensione del pool generato, in caso di bug imprevisti
+            if len(source_numbers_list) != numero_di_numeri:
+                 st.warning(f"Attenzione: la dimensione del pool di numeri generati ({len(source_numbers_list)}) non corrisponde a 'Numeri totali per il sistema' richiesti ({numero_di_numeri}). Questo può indicare un problema con i numeri fissi o i filtri. Il sistema userà {len(source_numbers_list)} numeri come base.")
+            
+            # --- FINE LOGICA DI COSTRUZIONE DEL POOL ---
 
-            st.success(f"🎲 *Numeri sorgente generati ({tipo_numeri_generazione.lower()}):* {source_numbers_list}")
+            st.success(f"🎲 *Pool di numeri del sistema ({tipo_numeri_generazione.lower()}):* {source_numbers_list}")
             
-            # Generazione combinazioni
-            with st.spinner("Generazione combinazioni iniziali..."):
-                full_combinations = generate_combinations_with_fixed(
-                    source_numbers_list, # Ora source_numbers_list contiene già i numeri fissi nel suo pool
-                    k_combination_length,
-                    # Non passiamo più fixed_numbers_to_include qui come parametro 'fixed_numbers',
-                    # perché la funzione generate_combinations_with_fixed è stata progettata per
-                    # operare su una lista 'source_numbers' che già contiene il pool completo.
-                    # MA! L'utente vuole che i numeri fissi siano *in ogni* combinazione.
-                    # Quindi la `generate_combinations_with_fixed` è comunque corretta e vuole i `fixed_numbers_to_include`
-                    # come parametro separato per imporre che siano inclusi. La confusione era sulla `source_numbers_list`
-                    # che doveva essere il pool da cui estrarre.
-                    fixed_numbers_to_include # Correggo: il parametro va mantenuto per imporre l'inclusione
+            # Generazione combinazioni iniziali da questo pool
+            with st.spinner("Generazione combinazioni iniziali (da tutto il pool)..."):
+                # Ora passiamo il pool completo e k. La funzione genera tutte le combinazioni da esso.
+                full_combinations = generate_all_k_combinations_from_pool(
+                    source_numbers_list,
+                    k_combination_length
                 )
             st.success(f"✅ *Combinazioni iniziali generate:* {len(full_combinations):,}")
             
@@ -432,7 +413,7 @@ with col1:
                 )
                 
                 # Statistiche per l'intestazione
-                source_str = ','.join(str(n) for n in source_numbers_list)
+                source_str = ','.join(map(str, source_numbers_list)) # Usa map(str, ...) per handle ints
                 if len(full_combinations) > 0: # Evita divisione per zero
                     riduzione_perc = (1 - len(final_combinations)/len(full_combinations)) * 100
                 else:
@@ -441,18 +422,18 @@ with col1:
                 header_info = [
                     f"Generazione Combinazioni - Riepilogo",
                     f"Data Generazione: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    f"Numeri totali per il sistema: {numero_di_numeri}",
+                    f"Numeri totali per il sistema (richiesti): {numero_di_numeri}",
+                    f"Pool di numeri effettivo usato: {len(source_numbers_list)} -> {source_str}",
                     f"Range: {range_min}-{range_max}",
                     f"Lunghezza Combinazione: {k_combination_length}",
-                    f"Numeri da includere: {fixed_numbers_to_include if fixed_numbers_to_include else 'Nessuno'}",
+                    f"Numeri da includere nel pool (fissi): {fixed_numbers_for_pool_construction if fixed_numbers_for_pool_construction else 'Nessuno'}",
+                    f"Tipo numeri nel pool: {tipo_numeri_generazione}",
                     f"Garanzia: {garanzia}",
-                    f"Max Combinazioni: {max_combinations if max_combinations else 'Nessun limite'}",
-                    f"Tipo Numeri: {tipo_numeri_generazione}",
-                    f"Seed: {seed_random if seed_random > 0 else 'Casuale'}",
-                    f"Numeri sorgente generati: {source_str}",
-                    f"Combinazioni iniziali generate: {len(full_combinations):,}",
-                    f"Combinazioni finali: {len(final_combinations):,}",
-                    f"Riduzione: {riduzione_perc:.1f}%",
+                    f"Max Combinazioni finali: {max_combinations if max_combinations else 'Nessun limite'}",
+                    f"Seed casualità: {seed_random if seed_random > 0 else 'Casuale'}",
+                    f"Combinazioni iniziali generate (da tutto il pool): {len(full_combinations):,}",
+                    f"Combinazioni finali (ridotte): {len(final_combinations):,}",
+                    f"Riduzione rispetto alle iniziali: {riduzione_perc:.1f}%",
                     "", # Riga vuota per separazione
                     "Combinazioni:"
                 ]
@@ -464,7 +445,7 @@ with col1:
                 # Statistiche
                 col_stat1, col_stat2, col_stat3 = st.columns(3)
                 with col_stat1:
-                    st.metric("🎯 Combinazioni", len(final_combinations))
+                    st.metric("🎯 Combinazioni Finali", len(final_combinations))
                 with col_stat2:
                     st.metric("📉 Riduzione", f"{riduzione_perc:.1f}%")
                 with col_stat3:
@@ -509,7 +490,7 @@ with col1:
                 
         except Exception as e:
             st.error(f"❌ *Errore durante la generazione:* {str(e)}")
-            st.info("💡 Prova a modificare i parametri e riprova. Assicurati che il numero di 'Numeri totali per il sistema' sia sufficientemente grande rispetto ai 'Numeri da includere' e alla 'Lunghezza combinazione'.")
+            st.info("💡 Prova a modificare i parametri e riprova. Assicurati che il 'Pool di numeri del sistema' sia sufficientemente grande rispetto alla 'Lunghezza combinazione'.")
 
 # Footer informativo
 st.markdown("---")
@@ -517,31 +498,32 @@ with st.expander("📖 Come Funziona l'Algoritmo"):
     st.markdown("""
     *🎯 Algoritmo Greedy con Garanzia:*
     
-    1. *Generazione*: Crea tutte le combinazioni possibili dai numeri sorgente, includendo i numeri fissi specificati in ogni combinazione.
-    2. *Analisi*: Calcola tutti i sottoinsiemi di dimensione 'garanzia' che devono essere coperti da queste combinazioni.
-    3. *Ottimizzazione*: Seleziona iterativamente le combinazioni dal set iniziale che coprono il maggior numero di sottoinsiemi non ancora coperti.
-    4. *Risultato*: Ottiene il minor numero di combinazioni che garantiscono la copertura di tutti i sottoinsiemi richiesti, o fino al limite massimo impostato.
+    1. **Generazione Pool di Numeri del Sistema**: Il sistema crea un pool di numeri (`Numeri totali per il sistema`) mescolando i tuoi 'Numeri da includere nel pool' (fissi) con numeri casuali (rispettando il range e il filtro pari/dispari). Questo è il set di numeri di base da cui si estrarrà.
+    2. **Generazione Combinazioni Iniziali**: Da questo pool di numeri di base, vengono generate *tutte* le possibili combinazioni della 'Lunghezza combinazione' desiderata.
+    3. **Analisi dei Sottoinsiemi (Target Sets)**: Vengono calcolati tutti i sottoinsiemi (es. le terzine se la garanzia è 3) di dimensione 'Garanzia' presenti nelle combinazioni iniziali. Questi sono gli elementi che l'algoritmo cercherà di "coprire".
+    4. **Ottimizzazione (Greedy)**: L'algoritmo seleziona un sottoinsieme di queste combinazioni iniziali. Ad ogni passo, sceglie la combinazione che "copre" il maggior numero di 'target sets' non ancora coperti. Questo si ripete fino a quando tutti i 'target sets' sono coperti o si raggiunge un limite massimo di combinazioni.
+    5. **Risultato**: Il sistema ti fornisce il set di combinazioni ridotte che soddisfa la 'Garanzia' richiesta.
     
-    *💡 Esempio:* Con garanzia 3, ogni terzina possibile (formata dai numeri presenti nelle combinazioni iniziali) sarà presente in almeno una delle combinazioni finali selezionate.
+    *💡 Esempio:* Se hai 'Lunghezza combinazione' 5 e 'Garanzia' 3, il sistema garantisce che ogni possibile terzina di numeri (formata dai numeri presenti nel tuo 'Pool di numeri del sistema') sarà inclusa in almeno una delle combinazioni finali selezionate.
     """)
 
 with st.expander("❓ Aiuto e Suggerimenti"):
     st.markdown("""
     *🔧 Parametri Principali:*
-    - *Numeri totali per il sistema*: Quanti numeri formano il pool di base da cui verranno create le combinazioni. Questo numero deve essere maggiore o uguale al numero di 'Numeri da includere'.
-    - *Range*: Intervallo da cui pescare i numeri per creare il pool di base.
-    - *Lunghezza combinazione*: Quanti numeri per ogni combinazione finale (es. 5 numeri per il Lotto). Deve essere maggiore del numero di 'Numeri da includere' se non si usano solo numeri fissi.
-    - *Garanzia*: Dimensione dei sottoinsiemi da garantire. Deve essere sempre minore della 'Lunghezza combinazione'.
+    - **Numeri totali per il sistema**: La dimensione del pool di numeri da cui verranno generate le combinazioni. Questo numero deve essere maggiore o uguale al numero di 'Numeri da includere nel pool'.
+    - **Range Min/Max**: L'intervallo da cui vengono pescati i numeri casuali per completare il pool.
+    - **Lunghezza combinazione**: Quanti numeri per ogni combinazione finale (es. 5 numeri per il Lotto). Non può essere maggiore del 'Numeri totali per il sistema'.
+    - **Garanzia**: Quanti numeri devono essere garantiti in comune. Deve essere minore o uguale della 'Lunghezza combinazione'. Se è uguale, il sistema garantirà la presenza delle combinazioni esatte.
     
-    *💡 Suggerimenti:*
-    - Inizia con parametri piccoli per testare.
-    - **Numeri da includere (fissi)**: Questi numeri appariranno in *ogni* combinazione finale. Se il numero di questi elementi è uguale a 'Numeri totali per il sistema', allora il sistema utilizzerà SOLO questi numeri come pool di base, senza generare numeri casuali.
-    - Il 'Seed' ti permette di riprodurre gli stessi risultati in diverse esecuzioni.
-    - *Tipo di numeri da generare*: Puoi scegliere di generare solo numeri pari, solo numeri dispari, o tutti i numeri nel range.
+    *⚙ Parametri Avanzati:*
+    - **Tipo di numeri da generare nel pool**: Filtra i numeri casuali del pool (es. solo pari o solo dispari).
+    - **Numeri da includere nel pool (fissi)**: Questi numeri saranno sempre parte del tuo 'Pool di numeri del sistema'. Se indichi un numero sufficiente di fissi, non verranno aggiunti numeri casuali.
+    - **Max combinazioni finali**: Limite massimo al numero di combinazioni finali generate. Utile per controllare la dimensione del risultato e il tempo di calcolo.
+    - **Seed per casualità**: Ti permette di riprodurre gli stessi risultati (relativi alla generazione del pool casuale) in diverse esecuzioni.
     
     *⚡ Performance:*
-    - L'algoritmo greedy può essere intensivo per un numero molto elevato di combinazioni iniziali o di sottoinsiemi da coprire.
-    - Usa 'Max combinazioni' per limitare il risultato finale, anche se la copertura completa non è stata raggiunta.
+    - L'algoritmo greedy può essere intensivo per un numero molto elevato di combinazioni iniziali o di sottoinsiemi da coprire. Riduci il 'Pool di numeri del sistema' o la 'Lunghezza combinazione' se i tempi sono eccessivi.
+    - Il 'Max combinazioni finali' può aiutare a controllare le performance.
     """)
 
 st.markdown("---")
