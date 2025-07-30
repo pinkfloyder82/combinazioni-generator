@@ -256,3 +256,4 @@ max_possible_system_numbers = len(potential_numbers_filtered_by_type)
 numero_di_numeri = st.sidebar.slider(
     "📊 Numeri totali per il sistema",
     min_value=5, max_value=max_possible_system_numbers, value=min(15, max_possible_system_numbers
+                                                                 )
